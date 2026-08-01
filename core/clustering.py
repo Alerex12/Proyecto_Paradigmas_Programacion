@@ -96,10 +96,22 @@ def _metricas(datos_escalados: pd.DataFrame, etiquetas: np.ndarray) -> dict:
 # --------------------------------------------------------------------------- #
 
 def metodo_codo(datos: pd.DataFrame, columnas: list[str], k_minimo: int = K_MINIMO, k_maximo: int = K_MAXIMO) -> pd.DataFrame:
-    """Inercia para cada K, para elegir el numero de clusters por el metodo del codo."""
+    """Inercia para cada K, para elegir el numero de clusters por el metodo del codo.
+
+    K nunca puede superar la cantidad de filas sin nulos: si hay menos filas
+    que k_maximo, el rango se recorta en silencio hasta lo que sí se puede
+    calcular.
+    """
     datos_escalados, _ = preparar_datos(datos, columnas)
+    limite = min(k_maximo, len(datos_escalados))
+    if limite < k_minimo:
+        raise ValueError(
+            f"Hacen falta al menos {k_minimo} filas sin nulos en estas columnas para "
+            f"calcular el metodo del codo (hay {len(datos_escalados)})."
+        )
+
     filas = []
-    for k in range(k_minimo, k_maximo + 1):
+    for k in range(k_minimo, limite + 1):
         modelo = KMeans(n_clusters=k, random_state=SEMILLA_ALEATORIA, n_init="auto")
         modelo.fit(datos_escalados)
         filas.append({"k": k, "inercia": round(float(modelo.inertia_), 2)})
@@ -108,6 +120,11 @@ def metodo_codo(datos: pd.DataFrame, columnas: list[str], k_minimo: int = K_MINI
 
 def ajustar_kmeans(datos: pd.DataFrame, columnas: list[str], k: int) -> ResultadoClustering:
     datos_escalados, _ = preparar_datos(datos, columnas)
+    if k > len(datos_escalados):
+        raise ValueError(
+            f"Pediste K={k} pero solo hay {len(datos_escalados)} filas sin nulos en estas "
+            "columnas. Elegi un K menor o revisa nulos/duplicados en Limpieza."
+        )
     modelo = KMeans(n_clusters=k, random_state=SEMILLA_ALEATORIA, n_init="auto")
     etiquetas = modelo.fit_predict(datos_escalados)
 
