@@ -209,3 +209,19 @@ def columnas_analizables(perfil: pd.DataFrame) -> dict[str, list[str]]:
         "fechas": columnas_por_tipo(perfil, {FECHA}),
         "excluir": columnas_por_tipo(perfil, {IDENTIFICADOR, CONSTANTE, VACIA, TEXTO}),
     }
+
+def a_numerico(serie: pd.Series) -> pd.Series:
+    """Convierte una columna a numerica, entendiendo formatos con simbolo de
+    moneda, separador de miles y coma decimal (ej. "¢1.028.842,17").
+    """
+    directo = pd.to_numeric(serie, errors="coerce")
+    if directo.notna().mean() >= 0.9:
+        return directo
+
+    limpia = (
+        serie.astype(str).str.strip()
+        .str.replace(r"[$₡¢€\s%]", "", regex=True)
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
+    return pd.to_numeric(limpia, errors="coerce")
