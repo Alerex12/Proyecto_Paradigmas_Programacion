@@ -86,24 +86,42 @@ with pestanas[1]:
     if len(columnas_cluster) < 2:
         st.info("Elegi al menos 2 columnas numericas.")
     else:
+        filas_disponibles = int(datos[columnas_cluster].dropna().shape[0])
+
+        if filas_disponibles < c.K_MINIMO:
+            st.warning(
+                f"Solo hay {filas_disponibles} filas sin nulos en estas columnas; hacen falta "
+                f"al menos {c.K_MINIMO} para poder agrupar. Revisa nulos y duplicados en Limpieza."
+            )
+            st.stop()
+
         algoritmo = st.radio("Algoritmo", ["K-Means", "DBSCAN"], horizontal=True)
+        k_maximo_disponible = min(c.K_MAXIMO, filas_disponibles)
 
         if algoritmo == "K-Means":
-            with st.expander("Metodo del codo (ayuda a elegir K)"):
-                codo = c.metodo_codo(datos, columnas_cluster)
-                st.line_chart(codo.set_index("k")["inercia"])
+            try:
+                with st.expander("Metodo del codo (ayuda a elegir K)"):
+                    codo = c.metodo_codo(datos, columnas_cluster, k_maximo=k_maximo_disponible)
+                    st.line_chart(codo.set_index("k")["inercia"])
 
-            k = st.slider("Numero de clusters (K)", c.K_MINIMO, c.K_MAXIMO, 3)
-            if st.button("Ejecutar K-Means", type="primary"):
-                resultado = c.ajustar_kmeans(datos, columnas_cluster, k)
-                st.session_state["resultado_clustering"] = resultado
+                k = st.slider(
+                    "Numero de clusters (K)", c.K_MINIMO, k_maximo_disponible, min(3, k_maximo_disponible)
+                )
+                if st.button("Ejecutar K-Means", type="primary"):
+                    resultado = c.ajustar_kmeans(datos, columnas_cluster, k)
+                    st.session_state["resultado_clustering"] = resultado
+            except ValueError as exc:
+                st.warning(str(exc))
         else:
             col1, col2 = st.columns(2)
             eps = col1.slider("eps (radio de vecindad)", 0.1, 5.0, c.EPS_POR_DEFECTO, 0.1)
-            min_muestras = col2.slider("min_samples", 2, 20, c.MIN_MUESTRAS_POR_DEFECTO)
+            min_muestras = col2.slider("min_samples", 2, max(2, min(20, filas_disponibles)), min(c.MIN_MUESTRAS_POR_DEFECTO, filas_disponibles))
             if st.button("Ejecutar DBSCAN", type="primary"):
-                resultado = c.ajustar_dbscan(datos, columnas_cluster, eps, min_muestras)
-                st.session_state["resultado_clustering"] = resultado
+                try:
+                    resultado = c.ajustar_dbscan(datos, columnas_cluster, eps, min_muestras)
+                    st.session_state["resultado_clustering"] = resultado
+                except ValueError as exc:
+                    st.warning(str(exc))
 
         resultado = st.session_state.get("resultado_clustering")
         if resultado is not None and resultado.columnas == columnas_cluster:
